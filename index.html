@@ -69,6 +69,30 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary); outlin
     margin-bottom: 8px; font-size: 0.95rem; font-weight: 500;
 }
 .btn-del { color: var(--danger); background: none; border: none; cursor: pointer; font-weight: bold; }
+
+/* ===== RESPONSIVO / CELULAR ===== */
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+.row > * { min-width: 0; }
+input, select, textarea, button { max-width: 100%; }
+input, select { min-height: 48px; }
+input[type="date"], input[type="time"] { -webkit-appearance: none; appearance: none; background: #fff; }
+button { touch-action: manipulation; }
+.btn-whatsapp, .btn-reset { min-height: 52px; }
+.badge button { min-width: 32px; min-height: 32px; }
+.btn-del { min-height: 40px; padding: 0 8px; }
+.btn-admin-open { padding: 12px; }
+.modal-content { max-height: 90vh; overflow-y: auto; }
+body { padding-bottom: calc(15px + env(safe-area-inset-bottom)); }
+
+@media (max-width: 480px) {
+    body { padding: 10px; padding-bottom: calc(10px + env(safe-area-inset-bottom)); }
+    .container { padding: 18px 14px; border-radius: 12px; }
+    h2 { font-size: 1.25rem; margin-bottom: 18px; }
+    .row { gap: 8px; }
+    .stack-mobile { flex-direction: column; gap: 0; }
+    .stack-mobile > .form-group { flex: none !important; }
+}
 </style>
 </head>
 <body>
@@ -118,7 +142,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary); outlin
             </div>
         </div>
 
-        <div class="row">
+        <div class="row stack-mobile">
             <div class="form-group" style="flex:2">
                 <label for="veiculo">Veículo do plantão (TAG):</label>
                 <select id="veiculo" required></select>
