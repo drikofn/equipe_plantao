@@ -133,11 +133,11 @@ body { padding-bottom: calc(15px + env(safe-area-inset-bottom)); }
             <div class="row">
                 <div style="flex:1">
                     <label for="edapsCarro" style="font-weight:500; margin-bottom:4px;">Carro (nº)</label>
-                    <input type="text" id="edapsCarro" inputmode="numeric" required>
+                    <input type="text" id="edapsCarro" inputmode="numeric" placeholder="Digite o número do EDAP" required>
                 </div>
                 <div style="flex:1">
                     <label for="edapsBolsa" style="font-weight:500; margin-bottom:4px;">Bolsa (nº)</label>
-                    <input type="text" id="edapsBolsa" inputmode="numeric" required>
+                    <input type="text" id="edapsBolsa" inputmode="numeric" placeholder="Digite o número do EDAP" required>
                 </div>
             </div>
         </div>
@@ -182,8 +182,6 @@ body { padding-bottom: calc(15px + env(safe-area-inset-bottom)); }
 
 <script>
 // ===== CONFIGURAÇÃO =====
-const CARRO_EDAPS = "12351512";
-const BOLSA_EDAPS = "1552111";
 const URL_GOOGLE_SHEETS = ""; // opcional: cole aqui a URL do Apps Script para gravar na planilha
 
 const frota = {
@@ -330,8 +328,8 @@ function carregarRascunho() {
     equipe = Array.isArray(d.equipe) ? d.equipe : [];
     $('veiculo').value = d.veiculo || '';
     atualizarPlaca();
-    $('edapsCarro').value = d.edaps_carro || CARRO_EDAPS;
-    $('edapsBolsa').value = d.edaps_bolsa || BOLSA_EDAPS;
+    $('edapsCarro').value = d.edaps_carro || '';
+    $('edapsBolsa').value = d.edaps_bolsa || '';
     $('obs').value = d.obs || '';
 }
 
@@ -339,7 +337,6 @@ function limparFormulario() {
     if (!confirm('Deseja limpar todos os campos?')) return;
     try { localStorage.removeItem(KEY_RASCUNHO); } catch (e) {}
     $('mainForm').reset();
-    padraoEdaps();
     equipe = [];
     renderBadges();
     atualizarSelect();
@@ -365,7 +362,7 @@ function enviarEscala() {
     const bolsa = $('edapsBolsa').value.trim();
     const tag = $('veiculo').value;
     const info = frota[tag];
-    const veiculo = `${tag} (${info.tipo}) - Placa ${info.placa}`;
+    const veiculo = `${tag} (${info.tipo})`;
     const sep = '───────────────';
 
     const mensagem =
@@ -375,7 +372,7 @@ function enviarEscala() {
         `🏁 *Término:* ${formatarDataHora(fim)}\n` +
         `${sep}\n` +
         `👷 *EQUIPE*\n` +
-        equipe.map((n, i) => `${i + 1}º ${n}`).join('\n') + `\n` +
+        equipe.join('\n') + `\n` +
         `${sep}\n` +
         `🚨 *EDAPS*\n` +
         `Carro: ${carro}\n` +
@@ -383,6 +380,7 @@ function enviarEscala() {
         `${sep}\n` +
         `🚗 *VEÍCULO DO PLANTÃO*\n` +
         `${veiculo}\n` +
+        `Placa: ${info.placa}\n` +
         `${sep}\n` +
         `📝 *OBSERVAÇÕES*\n` +
         `${obs}\n`;
@@ -395,7 +393,7 @@ function enviarEscala() {
         const dados = {
             inicio: formatarDataHora(inicio), fim: formatarDataHora(fim),
             equipe: equipe.join(', '), edaps_carro: carro, edaps_bolsa: bolsa,
-            veiculo: veiculo, obs: obs
+            veiculo: veiculo, placa: info.placa, obs: obs
         };
         fetch(URL_GOOGLE_SHEETS, { method: 'POST', mode: 'no-cors', body: JSON.stringify(dados) }).catch(() => {});
     }
@@ -405,12 +403,6 @@ function enviarEscala() {
 }
 
 // ===== INÍCIO =====
-function padraoEdaps() {
-    $('edapsCarro').value = CARRO_EDAPS;
-    $('edapsBolsa').value = BOLSA_EDAPS;
-}
-padraoEdaps();
-
 $('selectColab').addEventListener('change', e => {
     const nome = e.target.value;
     if (nome && !equipe.includes(nome)) {
