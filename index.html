@@ -77,13 +77,25 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary); outlin
     <h2>Escala de Sobreaviso</h2>
 
     <form id="mainForm">
-        <div class="form-group">
-            <label for="data_inicio">Data e hora de início:</label>
-            <input type="datetime-local" id="data_inicio" required>
+        <div class="row">
+            <div class="form-group" style="flex:3">
+                <label for="data_inicio">Data de início:</label>
+                <input type="date" id="data_inicio" required>
+            </div>
+            <div class="form-group" style="flex:2">
+                <label for="hora_inicio">Hora:</label>
+                <input type="time" id="hora_inicio" required>
+            </div>
         </div>
-        <div class="form-group">
-            <label for="data_fim">Data e hora de término:</label>
-            <input type="datetime-local" id="data_fim" required>
+        <div class="row">
+            <div class="form-group" style="flex:3">
+                <label for="data_fim">Data de término:</label>
+                <input type="date" id="data_fim" required>
+            </div>
+            <div class="form-group" style="flex:2">
+                <label for="hora_fim">Hora:</label>
+                <input type="time" id="hora_fim" required>
+            </div>
         </div>
 
         <div class="form-group">
@@ -271,7 +283,9 @@ function atualizarPlaca() {
 function salvarRascunho() {
     const d = {
         data_inicio: $('data_inicio').value,
+        hora_inicio: $('hora_inicio').value,
         data_fim: $('data_fim').value,
+        hora_fim: $('hora_fim').value,
         equipe: equipe,
         veiculo: $('veiculo').value,
         edaps_carro: $('edapsCarro').value,
@@ -286,7 +300,9 @@ function carregarRascunho() {
     try { d = JSON.parse(localStorage.getItem(KEY_RASCUNHO)); } catch (e) {}
     if (!d) return;
     $('data_inicio').value = d.data_inicio || '';
+    $('hora_inicio').value = d.hora_inicio || '';
     $('data_fim').value = d.data_fim || '';
+    $('hora_fim').value = d.hora_fim || '';
     equipe = Array.isArray(d.equipe) ? d.equipe : [];
     $('veiculo').value = d.veiculo || '';
     atualizarPlaca();
@@ -316,8 +332,8 @@ function enviarEscala() {
     if (!form.checkValidity()) { form.reportValidity(); return; }
     if (equipe.length === 0) { alert('Adicione pelo menos um colaborador à equipe.'); return; }
 
-    const inicio = $('data_inicio').value;
-    const fim = $('data_fim').value;
+    const inicio = $('data_inicio').value + 'T' + $('hora_inicio').value;
+    const fim = $('data_fim').value + 'T' + $('hora_fim').value;
     if (fim < inicio) { alert('O término não pode ser anterior ao início.'); return; }
 
     const obs = $('obs').value.trim() || 'Nenhuma observação.';
@@ -379,7 +395,7 @@ $('selectColab').addEventListener('change', e => {
     }
     e.target.value = '';
 });
-['data_inicio', 'data_fim', 'veiculo', 'edapsCarro', 'edapsBolsa', 'obs'].forEach(id => {
+['data_inicio', 'hora_inicio', 'data_fim', 'hora_fim', 'veiculo', 'edapsCarro', 'edapsBolsa', 'obs'].forEach(id => {
     $(id).addEventListener('input', salvarRascunho);
 });
 $('veiculo').addEventListener('change', atualizarPlaca);
