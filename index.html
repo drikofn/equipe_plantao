@@ -62,4 +62,336 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary); outlin
 .modal-content { background: var(--white); width: 90%; max-width: 400px; padding: 20px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
 .admin-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
 .add-box { display: flex; gap: 8px; margin-bottom: 20px; }
-.colab-list { max-height: 250px;
+.colab-list { max-height: 250px; overflow-y: auto; }
+.colab-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 12px; background: var(--gray-light); border-radius: 10px;
+    margin-bottom: 8px; font-size: 0.95rem; font-weight: 500;
+}
+.btn-del { color: var(--danger); background: none; border: none; cursor: pointer; font-weight: bold; }
+</style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Escala de Sobreaviso</h2>
+
+    <form id="mainForm">
+        <div class="row">
+            <div class="form-group">
+                <label for="data_inicio">Início do plantão:</label>
+                <input type="date" id="data_inicio" required>
+            </div>
+            <div class="form-group">
+                <label for="data_fim">Fim do plantão:</label>
+                <input type="date" id="data_fim" required>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="selectColab">Equipe:</label>
+            <select id="selectColab"></select>
+            <div class="badges" id="badges"></div>
+        </div>
+
+        <div class="form-group">
+            <label>EDAPS:</label>
+            <div class="row">
+                <div style="flex:1">
+                    <label for="edapsCarro" style="font-weight:500; margin-bottom:4px;">Carro (nº)</label>
+                    <input type="text" id="edapsCarro" inputmode="numeric" required>
+                </div>
+                <div style="flex:1">
+                    <label for="edapsBolsa" style="font-weight:500; margin-bottom:4px;">Bolsa (nº)</label>
+                    <input type="text" id="edapsBolsa" inputmode="numeric" required>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="form-group" style="flex:2">
+                <label for="veiculo">Veículo do plantão (TAG):</label>
+                <select id="veiculo" required></select>
+            </div>
+            <div class="form-group" style="flex:1">
+                <label for="placa">Placa:</label>
+                <input type="text" id="placa" readonly>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="obs">Observações:</label>
+            <textarea id="obs" rows="3"></textarea>
+        </div>
+
+        <button type="button" class="btn-whatsapp" id="btnEnviar">ENVIAR ESCALA</button>
+        <button type="button" class="btn-reset" id="btnLimpar">Limpar formulário</button>
+    </form>
+
+    <button type="button" class="btn-admin-open" id="btnAbrirEquipe">⚙️ Gerenciar equipe</button>
+</div>
+
+<div class="modal-overlay" id="modalEquipe">
+    <div class="modal-content">
+        <div class="admin-header">
+            <h3>Gerenciar equipe</h3>
+            <button type="button" id="btnFecharX" aria-label="Fechar" style="background:none; border:none; font-size:1.5rem; cursor:pointer;">×</button>
+        </div>
+        <div class="add-box">
+            <input type="text" id="novoNome" placeholder="Nome">
+            <button type="button" id="btnAdd" style="background: var(--primary-dark); color: white; border: none; padding: 0 15px; border-radius: 8px; cursor: pointer;">ADD</button>
+        </div>
+        <div class="colab-list" id="listaAdmin"></div>
+        <button type="button" id="btnConcluir" style="width:100%; padding:12px; margin-top:15px; border:none; border-radius:10px; background:#eee; font-weight:600; cursor:pointer;">Concluir</button>
+    </div>
+</div>
+
+<script>
+// ===== CONFIGURAÇÃO =====
+const CARRO_EDAPS = "12351512";
+const BOLSA_EDAPS = "1552111";
+const URL_GOOGLE_SHEETS = ""; // opcional: cole aqui a URL do Apps Script para gravar na planilha
+
+const frota = {
+    "TJUR 04": { tipo: "SKY MUNCK",   placa: "QFA1I50" },
+    "TJUR 07": { tipo: "SKY MUNCK",   placa: "RWR3C75" },
+    "TJUR 08": { tipo: "CAMINHONETE", placa: "QVE5H48" },
+    "TJUR 09": { tipo: "SKY MUNCK",   placa: "RXC6J04" },
+    "TJUR 13": { tipo: "CAMINHONETE", placa: "QVD4I38" },
+    "TJUR 14": { tipo: "CAMINHONETE", placa: "QVJ5J56" }
+};
+
+const KEY_EQUIPE = 'equipe_sobreaviso_v1';
+const KEY_RASCUNHO = 'rascunho_sobreaviso_v1';
+
+const $ = id => document.getElementById(id);
+const ordenar = lista => [...lista].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+
+let colaboradores = [
+    "Adriano Nascimento", "Cezar Prado", "Deivison Aleidson", "Deivison Barros",
+    "Edenildo Rodrigues", "Ezequiel", "Francivaldo Costa", "Jean Soares",
+    "Joelcinei Guimarães", "José Antônio", "Lucas Santos", "Matheus Costa",
+    "Reginaldo Pereira", "Welyton Pereira"
+];
+let equipe = [];
+
+try {
+    const salvo = JSON.parse(localStorage.getItem(KEY_EQUIPE));
+    if (Array.isArray(salvo)) colaboradores = salvo;
+} catch (e) {}
+
+function salvarListaBase() {
+    try { localStorage.setItem(KEY_EQUIPE, JSON.stringify(colaboradores)); } catch (e) {}
+}
+
+// ===== EQUIPE =====
+function atualizarSelect() {
+    const sel = $('selectColab');
+    sel.innerHTML = '';
+    sel.appendChild(new Option('Selecione...', ''));
+    ordenar(colaboradores).forEach(nome => {
+        const marcado = equipe.includes(nome);
+        const op = new Option(nome + (marcado ? ' ✔' : ''), nome);
+        op.disabled = marcado;
+        sel.appendChild(op);
+    });
+    renderAdmin();
+}
+
+function renderBadges() {
+    const box = $('badges');
+    box.innerHTML = '';
+    equipe.forEach((nome, i) => {
+        const b = document.createElement('div');
+        b.className = 'badge';
+        b.textContent = `${i + 1}º ${nome}`;
+        const x = document.createElement('button');
+        x.type = 'button';
+        x.textContent = '×';
+        x.setAttribute('aria-label', 'Remover ' + nome);
+        x.onclick = () => { equipe = equipe.filter(n => n !== nome); renderBadges(); atualizarSelect(); salvarRascunho(); };
+        b.appendChild(x);
+        box.appendChild(b);
+    });
+}
+
+function renderAdmin() {
+    const lista = $('listaAdmin');
+    lista.innerHTML = '';
+    ordenar(colaboradores).forEach(nome => {
+        const item = document.createElement('div');
+        item.className = 'colab-item';
+        const s = document.createElement('span');
+        s.textContent = nome;
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'btn-del';
+        b.textContent = 'Remover';
+        b.onclick = () => {
+            if (confirm(`Remover ${nome}?`)) {
+                colaboradores = colaboradores.filter(n => n !== nome);
+                equipe = equipe.filter(n => n !== nome);
+                salvarListaBase(); renderBadges(); atualizarSelect(); salvarRascunho();
+            }
+        };
+        item.append(s, b);
+        lista.appendChild(item);
+    });
+}
+
+function adicionarNovo() {
+    const nome = $('novoNome').value.trim();
+    if (!nome) return;
+    if (colaboradores.some(n => n.toLowerCase() === nome.toLowerCase())) {
+        alert('Esse nome já está na lista.');
+        return;
+    }
+    colaboradores.push(nome);
+    salvarListaBase();
+    atualizarSelect();
+    $('novoNome').value = '';
+}
+
+function toggleModal(show) { $('modalEquipe').style.display = show ? 'flex' : 'none'; }
+
+// ===== VEÍCULO =====
+function montarVeiculos() {
+    const sel = $('veiculo');
+    sel.innerHTML = '';
+    sel.appendChild(new Option('-- Selecione --', ''));
+    Object.keys(frota).forEach(tag => {
+        sel.appendChild(new Option(`${tag} (${frota[tag].tipo})`, tag));
+    });
+}
+
+function atualizarPlaca() {
+    const v = frota[$('veiculo').value];
+    $('placa').value = v ? v.placa : '';
+}
+
+// ===== RASCUNHO =====
+function salvarRascunho() {
+    const d = {
+        data_inicio: $('data_inicio').value,
+        data_fim: $('data_fim').value,
+        equipe: equipe,
+        veiculo: $('veiculo').value,
+        edaps_carro: $('edapsCarro').value,
+        edaps_bolsa: $('edapsBolsa').value,
+        obs: $('obs').value
+    };
+    try { localStorage.setItem(KEY_RASCUNHO, JSON.stringify(d)); } catch (e) {}
+}
+
+function carregarRascunho() {
+    let d = null;
+    try { d = JSON.parse(localStorage.getItem(KEY_RASCUNHO)); } catch (e) {}
+    if (!d) return;
+    $('data_inicio').value = d.data_inicio || '';
+    $('data_fim').value = d.data_fim || '';
+    equipe = Array.isArray(d.equipe) ? d.equipe : [];
+    $('veiculo').value = d.veiculo || '';
+    atualizarPlaca();
+    $('edapsCarro').value = d.edaps_carro || CARRO_EDAPS;
+    $('edapsBolsa').value = d.edaps_bolsa || BOLSA_EDAPS;
+    $('obs').value = d.obs || '';
+}
+
+function limparFormulario() {
+    if (!confirm('Deseja limpar todos os campos?')) return;
+    try { localStorage.removeItem(KEY_RASCUNHO); } catch (e) {}
+    $('mainForm').reset();
+    padraoEdaps();
+    equipe = [];
+    renderBadges();
+    atualizarSelect();
+}
+
+// ===== ENVIO =====
+const formatarData = iso => iso.split('-').reverse().join('/');
+
+function enviarEscala() {
+    const form = $('mainForm');
+    if (!form.checkValidity()) { form.reportValidity(); return; }
+    if (equipe.length === 0) { alert('Adicione pelo menos um colaborador à equipe.'); return; }
+
+    const inicio = $('data_inicio').value;
+    const fim = $('data_fim').value;
+    if (fim < inicio) { alert('A data final não pode ser anterior à data inicial.'); return; }
+
+    const obs = $('obs').value.trim() || 'Nenhuma observação.';
+    const carro = $('edapsCarro').value.trim();
+    const bolsa = $('edapsBolsa').value.trim();
+    const tag = $('veiculo').value;
+    const info = frota[tag];
+    const veiculo = `${tag} (${info.tipo}) - Placa ${info.placa}`;
+    const sep = '───────────────';
+
+    const mensagem =
+        `📟 *ESCALA DE SOBREAVISO*\n` +
+        `=========================\n` +
+        `📅 ${formatarData(inicio)} a ${formatarData(fim)}\n` +
+        `${sep}\n` +
+        `👷 *EQUIPE*\n` +
+        equipe.map((n, i) => `${i + 1}º ${n}`).join('\n') + `\n` +
+        `${sep}\n` +
+        `🚨 *EDAPS*\n` +
+        `Carro: ${carro}\n` +
+        `Bolsa: ${bolsa}\n` +
+        `${sep}\n` +
+        `🚗 *VEÍCULO DO PLANTÃO*\n` +
+        `${veiculo}\n` +
+        `${sep}\n` +
+        `📝 *OBSERVAÇÕES*\n` +
+        `${obs}\n`;
+
+    const btn = $('btnEnviar');
+    btn.disabled = true;
+    setTimeout(() => { btn.disabled = false; }, 2000);
+
+    if (URL_GOOGLE_SHEETS) {
+        const dados = {
+            inicio: formatarData(inicio), fim: formatarData(fim),
+            equipe: equipe.join(', '), edaps_carro: carro, edaps_bolsa: bolsa,
+            veiculo: veiculo, obs: obs
+        };
+        fetch(URL_GOOGLE_SHEETS, { method: 'POST', mode: 'no-cors', body: JSON.stringify(dados) }).catch(() => {});
+    }
+
+    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(mensagem)}`, '_blank');
+    salvarRascunho();
+}
+
+// ===== INÍCIO =====
+function padraoEdaps() {
+    $('edapsCarro').value = CARRO_EDAPS;
+    $('edapsBolsa').value = BOLSA_EDAPS;
+}
+padraoEdaps();
+
+$('selectColab').addEventListener('change', e => {
+    const nome = e.target.value;
+    if (nome && !equipe.includes(nome)) {
+        equipe.push(nome);
+        renderBadges(); atualizarSelect(); salvarRascunho();
+    }
+    e.target.value = '';
+});
+['data_inicio', 'data_fim', 'veiculo', 'edapsCarro', 'edapsBolsa', 'obs'].forEach(id => {
+    $(id).addEventListener('input', salvarRascunho);
+});
+$('veiculo').addEventListener('change', atualizarPlaca);
+$('btnEnviar').addEventListener('click', enviarEscala);
+$('btnLimpar').addEventListener('click', limparFormulario);
+$('btnAbrirEquipe').addEventListener('click', () => toggleModal(true));
+$('btnFecharX').addEventListener('click', () => toggleModal(false));
+$('btnConcluir').addEventListener('click', () => toggleModal(false));
+$('btnAdd').addEventListener('click', adicionarNovo);
+
+montarVeiculos();
+carregarRascunho();
+renderBadges();
+atualizarSelect();
+</script>
+</body>
+</html>
